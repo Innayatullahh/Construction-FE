@@ -48,7 +48,11 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({
   const [isCreating, setIsCreating] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDescription, setNewTaskDescription] = useState("");
-  const { addChecklistItem, updateChecklistItem, deleteChecklistItem } =
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editTaskTitle, setEditTaskTitle] = useState("");
+  const [editTaskDescription, setEditTaskDescription] = useState("");
+  const [editTaskStatus, setEditTaskStatus] = useState<TaskStatus>("not-started");
+  const { addChecklistItem, updateChecklistItem, deleteChecklistItem, deleteTask } =
     useTaskStore();
 
   const filteredTasks = tasks.filter((task) => {
@@ -85,6 +89,43 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({
 
   const handleChecklistItemDelete = async (taskId: string, itemId: string) => {
     await deleteChecklistItem(taskId, itemId);
+  };
+
+  const handleEditTask = (task: Task) => {
+    setEditingTask(task);
+    setEditTaskTitle(task.title);
+    setEditTaskDescription(task.description || "");
+    setEditTaskStatus(task.status);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingTask || !editTaskTitle.trim()) return;
+
+    await onTaskUpdate(editingTask.id, {
+      title: editTaskTitle.trim(),
+      description: editTaskDescription.trim() || undefined,
+      status: editTaskStatus,
+    });
+
+    setEditingTask(null);
+    setEditTaskTitle("");
+    setEditTaskDescription("");
+    setEditTaskStatus("not-started");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingTask(null);
+    setEditTaskTitle("");
+    setEditTaskDescription("");
+    setEditTaskStatus("not-started");
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    if (window.confirm("Are you sure you want to delete this task?")) {
+      console.log('Deleting task with ID:', taskId);
+      await deleteTask(taskId);
+      onTaskDelete(taskId);
+    }
   };
 
   return (
@@ -165,6 +206,57 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({
                 </button>
                 <button
                   onClick={() => setIsCreating(false)}
+                  className="px-4 py-2 bg-construction-300 text-construction-700 rounded-md hover:bg-construction-400"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Task Form */}
+        {editingTask && (
+          <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <h3 className="font-medium text-construction-900 mb-3">
+              Edit Task
+            </h3>
+            <div className="space-y-3">
+              <input
+                type="text"
+                placeholder="Task title"
+                value={editTaskTitle}
+                onChange={(e) => setEditTaskTitle(e.target.value)}
+                className="w-full px-3 py-2 border border-construction-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                autoFocus
+              />
+              <textarea
+                placeholder="Task description (optional)"
+                value={editTaskDescription}
+                onChange={(e) => setEditTaskDescription(e.target.value)}
+                className="w-full px-3 py-2 border border-construction-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                rows={3}
+              />
+              <select
+                value={editTaskStatus}
+                onChange={(e) => setEditTaskStatus(e.target.value as TaskStatus)}
+                className="w-full px-3 py-2 border border-construction-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value="not-started">Not Started</option>
+                <option value="in-progress">In Progress</option>
+                <option value="blocked">Blocked</option>
+                <option value="completed">Completed</option>
+              </select>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={!editTaskTitle.trim()}
+                  className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Save Changes
+                </button>
+                <button
+                  onClick={handleCancelEdit}
                   className="px-4 py-2 bg-construction-300 text-construction-700 rounded-md hover:bg-construction-400"
                 >
                   Cancel
@@ -433,7 +525,14 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({
 
                   <div className="flex items-center gap-1 mt-4 md:mt-0">
                     <button
-                      onClick={() => onTaskDelete(task.id)}
+                      onClick={() => handleEditTask(task)}
+                      className="p-2 text-blue-400 hover:text-blue-600"
+                      title="Edit task"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteTask(task.id)}
                       className="p-2 text-red-400 hover:text-red-600"
                       title="Delete task"
                     >

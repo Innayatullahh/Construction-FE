@@ -7,6 +7,7 @@ class ApiService {
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
     console.log('API Request:', url, options);
+    console.log('Full URL constructed:', url);
     const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
@@ -41,7 +42,8 @@ class ApiService {
   }
 
   async getTaskById(id: string): Promise<Task> {
-    return this.request<Task>(`/tasks/${id}`);
+    const encodedId = encodeURIComponent(id);
+    return this.request<Task>(`/tasks/${encodedId}`);
   }
 
   async createTask(userId: string, request: CreateTaskRequest): Promise<Task> {
@@ -52,14 +54,19 @@ class ApiService {
   }
 
   async updateTask(id: string, request: UpdateTaskRequest): Promise<Task> {
-    return this.request<Task>(`/tasks/${id}`, {
+    const encodedId = encodeURIComponent(id);
+    return this.request<Task>(`/tasks/${encodedId}`, {
       method: 'PUT',
       body: JSON.stringify(request),
     });
   }
 
   async deleteTask(id: string): Promise<void> {
-    return this.request<void>(`/tasks/${id}`, {
+    console.log('API deleteTask called with ID:', id);
+    const encodedId = encodeURIComponent(id);
+    console.log('Encoded ID:', encodedId);
+    console.log('Constructed URL:', `/tasks/${encodedId}`);
+    return this.request<void>(`/tasks/${encodedId}`, {
       method: 'DELETE',
     });
   }

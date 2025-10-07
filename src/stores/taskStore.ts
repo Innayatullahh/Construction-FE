@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Task, TaskStatus, ChecklistStatus } from '../types';
+import { Task, ChecklistStatus } from '../types';
 import { getDatabase } from '../database';
 import { apiService } from '../services/api';
 
@@ -14,6 +14,7 @@ interface TaskState {
   addChecklistItem: (taskId: string, text: string) => Promise<void>;
   updateChecklistItem: (taskId: string, itemId: string, updates: Partial<{ text: string; status: ChecklistStatus }>) => Promise<void>;
   deleteChecklistItem: (taskId: string, itemId: string) => Promise<void>;
+  cleanupDuplicates: (userId: string) => Promise<void>;
   setError: (error: string | null) => void;
 }
 
@@ -27,14 +28,24 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     try {
       const db = await getDatabase();
       
+      // Clean up any existing duplicates first
+      await get().cleanupDuplicates(userId);
+      
       // Try to fetch from backend first
       try {
         const serverTasks = await apiService.getTasksByUserId(userId);
-        // Store server tasks in local database
+        // Store server tasks in local database using upsert to prevent duplicates
         for (const task of serverTasks) {
           await db.tasks.upsert(task);
         }
-        set({ tasks: serverTasks, isLoading: false });
+        
+        // Get all tasks from local database to include any local-only tasks
+        const allTasks = await db.tasks.find({
+          selector: { userId },
+          sort: [{ createdAt: 'desc' }],
+        }).exec();
+        
+        set({ tasks: allTasks.map(doc => doc.toJSON() as Task), isLoading: false });
         return;
       } catch (apiError) {
         console.warn('Failed to fetch tasks from backend, using local data:', apiError);
@@ -65,9 +76,12 @@ export const useTaskStore = create<TaskState>((set, get) => ({
           description,
           position,
         });
+        // Use upsert to prevent duplicates when storing backend-created task
+        await db.tasks.upsert(newTask);
+        console.log('Task created successfully on server:', newTask.id);
       } catch (apiError) {
         console.warn('Failed to create task on backend, creating locally:', apiError);
-        // Fallback to local creation
+        // Fallback to local creation with local ID
         const taskId = `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         newTask = {
           id: taskId,
@@ -80,10 +94,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
+        // Insert local-only task
+        await db.tasks.insert(newTask);
+        console.log('Task created locally with ID:', taskId);
       }
-
-      // Store in local database
-      await db.tasks.insert(newTask);
       
       // Update local state
       set(state => ({
@@ -133,16 +147,29 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   deleteTask: async (taskId: string) => {
     try {
+      console.log('Store deleteTask called with ID:', taskId);
       const db = await getDatabase();
       const task = await db.tasks.findOne(taskId).exec();
       
       if (task) {
+        // Delete from local database first
         await task.remove();
         
         // Update local state
         set(state => ({
           tasks: state.tasks.filter(t => t.id !== taskId)
         }));
+
+        // Sync with backend API
+        try {
+          console.log('Calling API deleteTask with ID:', taskId);
+          await apiService.deleteTask(taskId);
+        } catch (apiError) {
+          console.warn('Failed to sync delete with backend:', apiError);
+          // Don't throw error - local delete succeeded
+        }
+      } else {
+        console.warn('Task not found in local database:', taskId);
       }
     } catch (error) {
       console.error('Error deleting task:', error);
@@ -264,6 +291,51 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     } catch (error) {
       console.error('Error deleting checklist item:', error);
       set({ error: 'Failed to delete checklist item' });
+    }
+  },
+
+  cleanupDuplicates: async (userId: string) => {
+    try {
+      const db = await getDatabase();
+      
+      // Get all tasks for the user
+      const allTasks = await db.tasks.find({
+        selector: { userId },
+      }).exec();
+      
+      // Group tasks by title and description to find duplicates
+      const taskGroups = new Map<string, Task[]>();
+      
+      allTasks.forEach(doc => {
+        const task = doc.toJSON() as Task;
+        const key = `${task.title}|${task.description || ''}`;
+        
+        if (!taskGroups.has(key)) {
+          taskGroups.set(key, []);
+        }
+        taskGroups.get(key)!.push(task);
+      });
+      
+      // Remove duplicates, keeping the most recent one
+      for (const [, tasks] of taskGroups) {
+        if (tasks.length > 1) {
+          // Sort by updatedAt (most recent first)
+          tasks.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+          
+          // Keep the first (most recent) task, remove the rest
+          const tasksToRemove = tasks.slice(1);
+          
+          for (const taskToRemove of tasksToRemove) {
+            const doc = await db.tasks.findOne(taskToRemove.id).exec();
+            if (doc) {
+              await doc.remove();
+              console.log(`Removed duplicate task: ${taskToRemove.title}`);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error cleaning up duplicates:', error);
     }
   },
 

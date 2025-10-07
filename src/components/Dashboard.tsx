@@ -20,7 +20,7 @@ export const Dashboard: React.FC = () => {
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      syncService.sync();
+      // Sync service will handle its own debouncing
     };
     const handleOffline = () => setIsOnline(false);
 
