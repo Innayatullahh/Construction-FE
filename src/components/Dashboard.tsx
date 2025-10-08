@@ -12,8 +12,12 @@ export const Dashboard: React.FC = () => {
   const [isOnline, setIsOnline] = React.useState(navigator.onLine);
 
   useEffect(() => {
+    console.log('Dashboard: useEffect triggered, user:', user);
     if (user) {
+      console.log('Dashboard: User is logged in, fetching tasks for:', user.id);
       fetchTasks(user.id);
+    } else {
+      console.log('Dashboard: No user logged in');
     }
   }, [user, fetchTasks]);
 
@@ -34,11 +38,18 @@ export const Dashboard: React.FC = () => {
   }, []);
 
   const handleTaskCreate = async (title: string, description?: string, position?: { x: number; y: number }) => {
-    if (!user) return;
+    if (!user) {
+      console.error('No user logged in - cannot create task');
+      setError('You must be logged in to create tasks');
+      return;
+    }
     
+    console.log('Dashboard: Creating task for user:', user.id, { title, description, position });
     try {
       await createTask(user.id, title, description, position);
+      console.log('Dashboard: Task created successfully');
     } catch (error) {
+      console.error('Dashboard: Task creation failed:', error);
       setError('Failed to create task');
     }
   };

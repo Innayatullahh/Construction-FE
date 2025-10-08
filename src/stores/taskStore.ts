@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Task, ChecklistStatus } from '../types';
-import { getDatabase } from '../database';
+import { getDatabase, clearDatabase } from '../database';
 import { apiService } from '../services/api';
 
 interface TaskState {
@@ -16,6 +16,7 @@ interface TaskState {
   deleteChecklistItem: (taskId: string, itemId: string) => Promise<void>;
   cleanupDuplicates: (userId: string) => Promise<void>;
   setError: (error: string | null) => void;
+  clearDatabaseAndRetry: () => Promise<void>;
 }
 
 export const useTaskStore = create<TaskState>((set, get) => ({
@@ -24,16 +25,21 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   error: null,
 
   fetchTasks: async (userId: string) => {
+    console.log('TaskStore: Starting to fetch tasks for user:', userId);
     set({ isLoading: true, error: null });
     try {
       const db = await getDatabase();
+      console.log('TaskStore: Database connection established for fetch');
       
       // Clean up any existing duplicates first
       await get().cleanupDuplicates(userId);
       
       // Try to fetch from backend first
       try {
+        console.log('TaskStore: Attempting to fetch tasks from backend...');
         const serverTasks = await apiService.getTasksByUserId(userId);
+        console.log('TaskStore: Received tasks from backend:', serverTasks.length, 'tasks');
+        
         // Store server tasks in local database using upsert to prevent duplicates
         for (const task of serverTasks) {
           await db.tasks.upsert(task);
@@ -45,32 +51,38 @@ export const useTaskStore = create<TaskState>((set, get) => ({
           sort: [{ createdAt: 'desc' }],
         }).exec();
         
+        console.log('TaskStore: Total tasks in local database:', allTasks.length);
         set({ tasks: allTasks.map(doc => doc.toJSON() as Task), isLoading: false });
         return;
       } catch (apiError) {
-        console.warn('Failed to fetch tasks from backend, using local data:', apiError);
+        console.warn('TaskStore: Failed to fetch tasks from backend, using local data:', apiError);
       }
       
       // Fallback to local database
+      console.log('TaskStore: Falling back to local database...');
       const tasks = await db.tasks.find({
         selector: { userId },
         sort: [{ createdAt: 'desc' }],
       }).exec();
       
+      console.log('TaskStore: Local tasks found:', tasks.length);
       set({ tasks: tasks.map(doc => doc.toJSON() as Task), isLoading: false });
     } catch (error) {
-      console.error('Error fetching tasks:', error);
+      console.error('TaskStore: Error fetching tasks:', error);
       set({ error: 'Failed to fetch tasks', isLoading: false });
     }
   },
 
   createTask: async (userId: string, title: string, description?: string, position?: { x: number; y: number }) => {
+    console.log('TaskStore: Starting task creation', { userId, title, description, position });
     try {
       const db = await getDatabase();
+      console.log('TaskStore: Database connection established');
       
       // Try to create task on backend first
       let newTask: Task;
       try {
+        console.log('TaskStore: Attempting to create task on backend...');
         newTask = await apiService.createTask(userId, {
           title,
           description,
@@ -78,9 +90,9 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         });
         // Use upsert to prevent duplicates when storing backend-created task
         await db.tasks.upsert(newTask);
-        console.log('Task created successfully on server:', newTask.id);
+        console.log('TaskStore: Task created successfully on server:', newTask.id);
       } catch (apiError) {
-        console.warn('Failed to create task on backend, creating locally:', apiError);
+        console.warn('TaskStore: Failed to create task on backend, creating locally:', apiError);
         // Fallback to local creation with local ID
         const taskId = `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         newTask = {
@@ -96,16 +108,25 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         };
         // Insert local-only task
         await db.tasks.insert(newTask);
-        console.log('Task created locally with ID:', taskId);
+        console.log('TaskStore: Task created locally with ID:', taskId);
       }
       
       // Update local state
+      console.log('TaskStore: Updating local state with new task');
       set(state => ({
         tasks: [newTask, ...state.tasks]
       }));
+      console.log('TaskStore: Task creation completed successfully');
     } catch (error) {
-      console.error('Error creating task:', error);
-      set({ error: 'Failed to create task' });
+      console.error('TaskStore: Error creating task:', error);
+      // Check if it's a schema error
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'DB6') {
+        console.log('TaskStore: Schema error detected, clearing database...');
+        await get().clearDatabaseAndRetry();
+        set({ error: 'Database schema updated. Please try creating the task again.' });
+      } else {
+        set({ error: 'Failed to create task' });
+      }
     }
   },
 
@@ -340,4 +361,16 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   },
 
   setError: (error: string | null) => set({ error }),
+
+  clearDatabaseAndRetry: async () => {
+    console.log('TaskStore: Clearing database due to schema error...');
+    try {
+      await clearDatabase();
+      console.log('TaskStore: Database cleared successfully');
+      set({ error: null, tasks: [] });
+    } catch (error) {
+      console.error('TaskStore: Error clearing database:', error);
+      set({ error: 'Failed to clear database. Please refresh the page.' });
+    }
+  },
 }));
