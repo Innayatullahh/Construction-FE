@@ -9,6 +9,7 @@ import {
   AlertCircle,
   Edit,
   Trash2,
+  Eye,
 } from "lucide-react";
 
 interface TaskBoardProps {
@@ -30,6 +31,10 @@ const statusConfig = {
   blocked: {
     color: "bg-red-100 text-red-700 border-red-200",
     label: "Blocked",
+  },
+  "final-check-awaiting": {
+    color: "bg-yellow-100 text-yellow-700 border-yellow-200",
+    label: "Final Check awaiting",
   },
   completed: {
     color: "bg-green-100 text-green-700 border-green-200",
@@ -68,6 +73,7 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({
   const handleCreateTask = () => {
     if (!newTaskTitle.trim()) return;
 
+    console.log('Creating task:', { title: newTaskTitle.trim(), description: newTaskDescription.trim() });
     onTaskCreate(newTaskTitle.trim(), newTaskDescription.trim() || undefined);
     setIsCreating(false);
     setNewTaskTitle("");
@@ -245,6 +251,7 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({
                 <option value="not-started">Not Started</option>
                 <option value="in-progress">In Progress</option>
                 <option value="blocked">Blocked</option>
+                <option value="final-check-awaiting">Final Check awaiting</option>
                 <option value="completed">Completed</option>
               </select>
               <div className="flex gap-2">
@@ -280,7 +287,7 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({
                 key={task.id}
                 className="bg-white rounded-xl shadow-sm border border-construction-100 p-6 hover:shadow-md transition-all duration-200"
               >
-                <div className="flex flex-col md:flex-row items-start justify-between mb-4">
+                <div className="flex flex-col items-start justify-between mb-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-3">
                       <div
@@ -291,14 +298,18 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({
                             ? "bg-blue-500"
                             : task.status === "blocked"
                             ? "bg-red-500"
+                            : task.status === "final-check-awaiting"
+                            ? "bg-yellow-500"
                             : "bg-green-500"
                         }`}
                       ></div>
                       <h3 className="text-lg font-semibold text-construction-900">
                         {task.title}
                       </h3>
+                    </div>
+                    <div className="pb-3">
                       <span
-                        className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        className={`px-3 py-2 rounded-full text-xs font-medium ${
                           statusConfig[task.status].color
                         }`}
                       >
@@ -353,6 +364,19 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({
                         </button>
                         <button
                           onClick={() =>
+                            onTaskUpdate(task.id, { status: "final-check-awaiting" })
+                          }
+                          className={`p-1 rounded ${
+                            task.status === "final-check-awaiting"
+                              ? "bg-yellow-100 text-yellow-700"
+                              : "text-yellow-400 hover:text-yellow-600"
+                          }`}
+                          title="Final Check Awaiting"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() =>
                             onTaskUpdate(task.id, { status: "completed" })
                           }
                           className={`p-1 rounded ${
@@ -383,6 +407,7 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({
                           <option value="not-started">Not Started</option>
                           <option value="in-progress">In Progress</option>
                           <option value="blocked">Blocked</option>
+                          <option value="final-check-awaiting">Final Check awaiting</option>
                           <option value="completed">Completed</option>
                         </select>
                       </div>
@@ -463,6 +488,8 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({
                                         ? "bg-blue-500"
                                         : item.status === "blocked"
                                         ? "bg-red-500"
+                                        : item.status === "final-check-awaiting"
+                                        ? "bg-yellow-500"
                                         : "bg-green-500"
                                     }`}
                                   ></div>
@@ -474,6 +501,8 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({
                                         ? "text-blue-600"
                                         : item.status === "blocked"
                                         ? "text-red-600"
+                                        : item.status === "final-check-awaiting"
+                                        ? "text-yellow-600"
                                         : "text-green-600"
                                     }`}
                                   >
@@ -483,6 +512,8 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({
                                       ? "In progress"
                                       : item.status === "blocked"
                                       ? "Blocked"
+                                      : item.status === "final-check-awaiting"
+                                      ? "Final check awaiting"
                                       : "Completed"}
                                   </span>
                                 </div>
