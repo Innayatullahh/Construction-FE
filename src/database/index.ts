@@ -1,11 +1,13 @@
 import { createRxDatabase, RxDatabase, RxCollection, addRxPlugin } from 'rxdb';
 import { getRxStorageDexie } from 'rxdb/plugins/storage-dexie';
 import { RxDBUpdatePlugin } from 'rxdb/plugins/update';
+import { RxDBMigrationSchemaPlugin } from 'rxdb/plugins/migration-schema';
 import { userSchema, taskSchema, syncStateSchema } from './schema';
 import { User, Task } from '../types';
 
 // Add required plugins
 addRxPlugin(RxDBUpdatePlugin);
+addRxPlugin(RxDBMigrationSchemaPlugin);
 
 export type DatabaseCollections = {
   users: RxCollection<User>;
@@ -34,6 +36,12 @@ export async function createDatabase(): Promise<Database> {
     },
     tasks: {
       schema: taskSchema,
+      migrationStrategies: {
+        1: (oldDoc: any) => {
+          // Migration from version 0 to 1: Add final-check-awaiting status support
+          return oldDoc;
+        }
+      }
     },
     syncstate: {
       schema: syncStateSchema,
@@ -49,4 +57,23 @@ export async function getDatabase(): Promise<Database> {
     return await createDatabase();
   }
   return database;
+}
+
+export async function clearDatabase(): Promise<void> {
+  if (database) {
+    await database.destroy();
+    database = null;
+  }
+  // Clear IndexedDB storage
+  if (typeof window !== 'undefined' && window.indexedDB) {
+    try {
+      const deleteReq = window.indexedDB.deleteDatabase('constructiondb');
+      await new Promise((resolve, reject) => {
+        deleteReq.onsuccess = () => resolve(undefined);
+        deleteReq.onerror = () => reject(deleteReq.error);
+      });
+    } catch (error) {
+      console.warn('Could not clear IndexedDB:', error);
+    }
+  }
 }

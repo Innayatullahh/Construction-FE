@@ -190,6 +190,7 @@ export const FloorPlan: React.FC<FloorPlanProps> = ({
                 task.status === 'not-started' ? 'border-t-gray-500' :
                 task.status === 'in-progress' ? 'border-t-blue-500' :
                 task.status === 'blocked' ? 'border-t-red-500' :
+                task.status === 'final-check-awaiting' ? 'border-t-yellow-500' :
                 'border-t-green-500'
               }`}></div>
             </div>

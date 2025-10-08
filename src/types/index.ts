@@ -26,8 +26,8 @@ export interface ChecklistItem {
   createdAt: string;
 }
 
-export type TaskStatus = 'not-started' | 'in-progress' | 'blocked' | 'completed';
-export type ChecklistStatus = 'not-started' | 'in-progress' | 'blocked' | 'completed';
+export type TaskStatus = 'not-started' | 'in-progress' | 'blocked' | 'final-check-awaiting' | 'completed';
+export type ChecklistStatus = 'not-started' | 'in-progress' | 'blocked' | 'final-check-awaiting' | 'completed';
 
 export interface CreateUserRequest {
   name: string;

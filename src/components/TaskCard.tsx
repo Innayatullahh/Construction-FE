@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Task, TaskStatus } from '../types';
 import { useTaskStore } from '../stores/taskStore';
-import { Edit, Trash2, CheckCircle, Clock, AlertCircle, XCircle } from 'lucide-react';
+import { Edit, Trash2, CheckCircle, Clock, AlertCircle, XCircle, Eye } from 'lucide-react';
 import Draggable from 'react-draggable';
 
 interface TaskCardProps {
@@ -14,6 +14,7 @@ const statusConfig = {
   'not-started': { color: 'bg-gray-100 text-gray-700', icon: Clock, label: 'Not Started' },
   'in-progress': { color: 'bg-blue-100 text-blue-700', icon: Edit, label: 'In Progress' },
   'blocked': { color: 'bg-red-100 text-red-700', icon: AlertCircle, label: 'Blocked' },
+  'final-check-awaiting': { color: 'bg-yellow-100 text-yellow-700', icon: Eye, label: 'Final Check awaiting' },
   'completed': { color: 'bg-green-100 text-green-700', icon: CheckCircle, label: 'Completed' },
 };
 

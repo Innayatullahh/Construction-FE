@@ -1,6 +1,6 @@
 import { RxJsonSchema } from 'rxdb';
 
-export const userSchema: RxJsonSchema = {
+export const userSchema: RxJsonSchema<any> = {
   version: 0,
   primaryKey: 'id',
   type: 'object',
@@ -21,8 +21,8 @@ export const userSchema: RxJsonSchema = {
   required: ['id', 'name', 'createdAt'],
 };
 
-export const taskSchema: RxJsonSchema = {
-  version: 0,
+export const taskSchema: RxJsonSchema<any> = {
+  version: 1,
   primaryKey: 'id',
   type: 'object',
   properties: {
@@ -44,7 +44,7 @@ export const taskSchema: RxJsonSchema = {
     },
     status: {
       type: 'string',
-      enum: ['not-started', 'in-progress', 'blocked', 'completed'],
+      enum: ['not-started', 'in-progress', 'blocked', 'final-check-awaiting', 'completed'],
     },
     position: {
       type: 'object',
@@ -62,7 +62,7 @@ export const taskSchema: RxJsonSchema = {
           text: { type: 'string', maxLength: 500 },
           status: {
             type: 'string',
-            enum: ['not-started', 'in-progress', 'blocked', 'completed'],
+            enum: ['not-started', 'in-progress', 'blocked', 'final-check-awaiting', 'completed'],
           },
           createdAt: { type: 'string', format: 'date-time' },
         },
@@ -81,7 +81,7 @@ export const taskSchema: RxJsonSchema = {
   required: ['id', 'userId', 'title', 'status', 'checklist', 'createdAt', 'updatedAt'],
 };
 
-export const syncStateSchema: RxJsonSchema = {
+export const syncStateSchema: RxJsonSchema<any> = {
   version: 0,
   primaryKey: 'id',
   type: 'object',
